@@ -7,7 +7,6 @@ import time
 import platform
 from io import BytesIO
 import base64
-from streamlit import components
 
 # 設置頁面配置
 st.set_page_config(
@@ -21,30 +20,6 @@ st.title("英語配音練習系統")
 
 # 檢測運行環境
 is_cloud = os.environ.get('STREAMLIT_CLOUD', False)
-
-# 添加JavaScript代碼來檢測麥克風
-st.markdown("""
-<script>
-async function checkMicrophone() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(track => track.stop());
-        return true;
-    } catch (err) {
-        return false;
-    }
-}
-
-// 檢測麥克風並更新頁面狀態
-checkMicrophone().then(hasPermission => {
-    if (hasPermission) {
-        window.parent.postMessage({type: 'mic-status', status: 'available'}, '*');
-    } else {
-        window.parent.postMessage({type: 'mic-status', status: 'unavailable'}, '*');
-    }
-});
-</script>
-""", unsafe_allow_html=True)
 
 # 初始化 session state
 if 'student_id' not in st.session_state:
@@ -126,73 +101,80 @@ if script_files:
     # 錄音部分
     st.subheader("您的錄音")
     
-    # 使用最簡單的方式測試按鈕點擊是否正常
-    st.markdown("""
-    <div class="audio-controls">
-        <button id="basicTest" class="record-button" onclick="alert('按鈕點擊成功！')">測試按鈕</button>
-        <div style="margin-top: 15px;">
-            <span>如果上面的按鈕無法點擊，請嘗試使用下面的文件上傳方式：</span>
-        </div>
-    </div>
+    # 使用原生Streamlit元素
+    tab1, tab2 = st.tabs(["方法一：直接錄音", "方法二：上傳音頻"])
     
-    <style>
-    .audio-controls {
-        margin: 20px 0;
-        padding: 15px;
-        background-color: #f0f2f6;
-        border-radius: 8px;
-        text-align: center;
-    }
-    .record-button {
-        margin: 0 10px;
-        padding: 10px 20px;
-        border-radius: 5px;
-        border: none;
-        background-color: #ff4b4b;
-        color: white;
-        cursor: pointer;
-        font-size: 16px;
-        transition: all 0.3s ease;
-    }
-    .record-button:hover {
-        background-color: #ff3333;
-        transform: scale(1.05);
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # 使用Streamlit內置的文件上傳功能作為備用方案
-    st.write("### 請通過以下方式上傳您的錄音")
-    uploaded_file = st.file_uploader("選擇音頻文件或使用麥克風錄制", type=['mp3', 'wav', 'ogg', 'm4a', 'webm'], accept_multiple_files=False)
-    
-    # 或者使用camera_input (會在移動設備上自動使用麥克風)
-    if uploaded_file is None:
-        st.write("### 或者直接錄音（僅支持移動設備）")
+    with tab1:
+        st.write("使用瀏覽器錄音功能：")
+        
+        # 使用Streamlit的內置錄音功能
         audio_bytes = st.audio_recorder(pause_threshold=3.0)
+        
         if audio_bytes:
+            st.success("錄音完成！")
             st.audio(audio_bytes, format="audio/wav")
+            
             # 保存錄音
-            if st.button("保存此錄音"):
-                # 保存到文件
-                recording_filename = f"{st.session_state.student_id}_{st.session_state.current_index+1}.wav"
-                recording_path = os.path.join(RECORDING_PATH, recording_filename)
-                with open(recording_path, "wb") as f:
-                    f.write(audio_bytes)
-                st.success(f"錄音已保存：{recording_filename}")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("保存此錄音"):
+                    # 保存到文件
+                    recording_filename = f"{st.session_state.student_id}_{st.session_state.current_index+1}.wav"
+                    recording_path = os.path.join(RECORDING_PATH, recording_filename)
+                    with open(recording_path, "wb") as f:
+                        f.write(audio_bytes)
+                    st.success(f"錄音已保存：{recording_filename}")
+                    
+            with col2:
+                if st.button("重新錄音"):
+                    st.rerun()
     
-    # 處理上傳的音頻文件
-    if uploaded_file is not None:
-        # 保存上傳的音頻
-        recording_filename = f"{st.session_state.student_id}_{st.session_state.current_index+1}.{uploaded_file.name.split('.')[-1]}"
-        recording_path = os.path.join(RECORDING_PATH, recording_filename)
+    with tab2:
+        st.write("上傳現有音頻文件：")
         
-        with open(recording_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
+        # 文件上傳功能
+        uploaded_file = st.file_uploader("選擇音頻文件", type=['mp3', 'wav', 'ogg', 'm4a', 'webm'])
         
-        st.success(f"錄音已上傳：{recording_filename}")
-        st.audio(uploaded_file, format=f"audio/{uploaded_file.name.split('.')[-1]}")
+        if uploaded_file is not None:
+            # 獲取文件類型
+            file_extension = uploaded_file.name.split('.')[-1].lower()
+            
+            # 顯示上傳的音頻
+            st.audio(uploaded_file, format=f"audio/{file_extension}")
+            
+            # 保存上傳的音頻
+            if st.button("使用此音頻"):
+                recording_filename = f"{st.session_state.student_id}_{st.session_state.current_index+1}.{file_extension}"
+                recording_path = os.path.join(RECORDING_PATH, recording_filename)
+                
+                with open(recording_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                
+                st.success(f"音頻已保存：{recording_filename}")
+
+    # 檢查是否已有保存的錄音
+    existing_recording = None
+    for ext in ['wav', 'mp3', 'ogg', 'm4a', 'webm']:
+        potential_file = os.path.join(RECORDING_PATH, f"{st.session_state.student_id}_{st.session_state.current_index+1}.{ext}")
+        if os.path.exists(potential_file):
+            existing_recording = potential_file
+            break
+    
+    # 顯示已保存的錄音（如果有）
+    if existing_recording:
+        st.markdown("---")
+        st.subheader("您已保存的錄音")
+        st.audio(existing_recording)
+        
+        # 添加刪除選項
+        if st.button("刪除此錄音"):
+            os.remove(existing_recording)
+            st.success("錄音已刪除")
+            st.rerun()
 
     # 導航按鈕
+    st.markdown("---")
     col1, col2, col3 = st.columns(3)
     
     with col1:
