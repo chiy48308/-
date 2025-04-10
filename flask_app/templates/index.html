@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英語配音練習系統</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="text-center mb-4">
+            <h1>英語配音練習系統</h1>
+            <p class="lead">練習英語發音，提升口語能力</p>
+        </header>
+
+        <!-- 學號輸入 -->
+        <div class="row mb-4">
+            <div class="col-md-6 offset-md-3">
+                <form action="/set_student_id" method="post" class="d-flex">
+                    <input type="text" name="student_id" class="form-control" placeholder="請輸入學號" value="{{ student_id }}" required>
+                    <button type="submit" class="btn btn-primary ms-2">確定</button>
+                </form>
+            </div>
+        </div>
+
+        {% if student_id %}
+            <!-- 進度顯示 -->
+            <div class="progress mb-3">
+                <div class="progress-bar" role="progressbar" style="width: {{ (current_index + 1) / total_scripts * 100 }}%">
+                    進度：{{ current_index + 1 }}/{{ total_scripts }}
+                </div>
+            </div>
+
+            <!-- 當前腳本 -->
+            <div class="script-box">
+                <h5>當前台詞：</h5>
+                <div class="form-control" style="height: auto; min-height: 100px;">{{ script_content }}</div>
+            </div>
+
+            <!-- 原音頻 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>原音頻</h5>
+                </div>
+                <div class="card-body text-center">
+                    {% if audio_filename %}
+                        <audio class="audio-player" controls>
+                            <source src="/audio/{{ audio_filename }}" type="audio/mp3">
+                            您的瀏覽器不支持音頻播放
+                        </audio>
+                    {% else %}
+                        <div class="alert alert-warning">找不到原音頻文件</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 錄音部分 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>您的錄音</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="nav nav-tabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="record-tab" data-bs-toggle="tab" data-bs-target="#record" type="button" role="tab">錄製音頻</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="upload-tab" data-bs-toggle="tab" data-bs-target="#upload" type="button" role="tab">上傳音頻</button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content p-3">
+                        <!-- 錄音標籤頁 -->
+                        <div class="tab-pane fade show active" id="record" role="tabpanel">
+                            <div class="audio-recorder">
+                                <div class="mb-3">
+                                    <button id="startRecordButton" class="btn btn-danger">開始錄音</button>
+                                    <button id="stopRecordButton" class="btn btn-secondary" disabled>停止錄音</button>
+                                </div>
+                                
+                                <div id="recordingIndicator">正在錄音...</div>
+                                <div id="timer">00:00</div>
+                                
+                                <div id="recordingStatus"></div>
+                                
+                                <audio id="recordedAudio" class="audio-player mt-3" controls style="display:none;"></audio>
+                                
+                                <div class="mt-3" id="saveRecordingDiv" style="display:none;">
+                                    <button id="saveRecordingButton" class="btn btn-success">保存錄音</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 上傳標籤頁 -->
+                        <div class="tab-pane fade" id="upload" role="tabpanel">
+                            <div class="upload-area">
+                                <form id="uploadForm" enctype="multipart/form-data">
+                                    <div class="mb-3">
+                                        <label for="audioFile" class="form-label">選擇音頻文件</label>
+                                        <input class="form-control" type="file" id="audioFile" name="audio_file" accept="audio/*">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">上傳</button>
+                                </form>
+                                <div id="uploadStatus"></div>
+                                <div class="mt-3">
+                                    <audio id="uploadedAudio" class="audio-player" controls style="display:none;"></audio>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 已保存的錄音 -->
+            {% if existing_recording %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>已保存的錄音</h5>
+                </div>
+                <div class="card-body text-center">
+                    <audio class="audio-player" controls>
+                        <source src="/recording/{{ existing_recording }}" type="audio/{{ existing_recording.split('.')[-1] }}">
+                        您的瀏覽器不支持音頻播放
+                    </audio>
+                    <div class="mt-3">
+                        <button id="deleteRecordingButton" class="btn btn-danger">刪除錄音</button>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 導航按鈕 -->
+            <div class="nav-buttons">
+                <form action="/navigate" method="post" style="display: inline;">
+                    <input type="hidden" name="direction" value="prev">
+                    <button type="submit" class="btn btn-outline-primary" {% if current_index == 0 %}disabled{% endif %}>上一句</button>
+                </form>
+                
+                <span>當前第 {{ current_index + 1 }} 句，共 {{ total_scripts }} 句</span>
+                
+                <form action="/navigate" method="post" style="display: inline;">
+                    <input type="hidden" name="direction" value="next">
+                    <button type="submit" class="btn btn-outline-primary" {% if current_index == total_scripts - 1 %}disabled{% endif %}>下一句</button>
+                </form>
+            </div>
+        {% endif %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/recorder.js') }}"></script>
+</body>
+</html> 

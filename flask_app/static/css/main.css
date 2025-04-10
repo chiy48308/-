@@ -1,0 +1,82 @@
+/* 主要樣式 */
+body {
+    padding-top: 20px;
+    padding-bottom: 40px;
+}
+.container {
+    max-width: 1000px;
+}
+.script-box {
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+.audio-controls {
+    margin: 20px 0;
+    padding: 15px;
+    background-color: #f0f2f6;
+    border-radius: 8px;
+    text-align: center;
+}
+.audio-recorder {
+    margin: 20px 0;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    text-align: center;
+}
+.record-button {
+    margin: 0 10px;
+    padding: 10px 20px;
+    border-radius: 5px;
+    border: none;
+    background-color: #ff4b4b;
+    color: white;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.3s ease;
+}
+.record-button:hover {
+    background-color: #ff3333;
+    transform: scale(1.05);
+}
+.record-button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+    transform: none;
+}
+#recordingIndicator {
+    color: red;
+    display: none;
+    margin-top: 10px;
+}
+#timer {
+    font-size: 18px;
+    margin: 10px 0;
+    display: none;
+}
+.upload-area {
+    margin-top: 20px;
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+.upload-area:hover {
+    border-color: #0d6efd;
+}
+#uploadStatus, #recordingStatus {
+    margin-top: 10px;
+}
+.audio-player {
+    width: 100%;
+    margin-top: 15px;
+}
+.nav-buttons {
+    margin-top: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+} 

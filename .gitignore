@@ -42,3 +42,42 @@ Thumbs.db
 # 本專案特定
 **/temp_recording.wav
 **/device_test.wav
+
+# Flask application specific
+flask_app/static/uploads/recordings/*
+!flask_app/static/uploads/recordings/.gitkeep
+instance/
+.webassets-cache
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Heroku related
+.heroku/
+Procfile.windows
