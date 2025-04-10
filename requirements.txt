@@ -1,6 +1,21 @@
-streamlit==1.32.0
-sounddevice==0.4.6
-soundfile==0.12.1
-numpy==1.24.3
-librosa==0.10.1
-pandas==2.0.3 
+# Web界面和基礎依賴
+streamlit>=1.32.0
+rich>=14.0.0
+markdown-it-py>=3.0.0
+mdurl>=0.1.2
+pygments>=2.19.1
+
+# 科學計算
+numpy>=1.24.3
+pandas>=2.0.3
+
+# 音頻處理
+sounddevice>=0.4.6
+soundfile>=0.12.1
+librosa>=0.10.1
+
+# 系統相關
+protobuf>=3.20.0
+setuptools>=65.5.1
+wheel>=0.40.0
+pip>=23.0.1 
