@@ -1,0 +1,44 @@
+# Python 相關
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虛擬環境
+venv/
+ENV/
+.env
+
+# IDE 和編輯器
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 操作系統
+.DS_Store
+Thumbs.db
+
+# Streamlit 相關
+.streamlit/secrets.toml
+.streamlit/config.toml
+
+# 本專案特定
+**/temp_recording.wav
+**/device_test.wav
