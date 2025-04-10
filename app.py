@@ -7,6 +7,7 @@ import time
 import platform
 from io import BytesIO
 import base64
+from streamlit import components
 
 # 設置頁面配置
 st.set_page_config(
@@ -126,7 +127,7 @@ if script_files:
     st.subheader("您的錄音")
     
     # 添加錄音組件的HTML
-    st.markdown("""
+    components.html("""
     <div class="audio-controls">
         <button id="startRecord" class="record-button">開始錄音</button>
         <button id="stopRecord" class="record-button" disabled>停止錄音</button>
@@ -135,6 +136,7 @@ if script_files:
     </div>
     
     <script>
+    // 立即執行函數，避免變量污染全局空間
     (function() {
         console.log('[初始化] 腳本開始加載...');
         
@@ -160,35 +162,83 @@ if script_files:
             }
         }
 
+        // 檢查是否在Streamlit環境中運行
+        function isInStreamlit() {
+            try {
+                return window.parent !== window;
+            } catch(e) {
+                showDebugInfo('檢查Streamlit環境出錯: ' + e.message, 'error');
+                return true; // 假設在Streamlit中，以安全角度考慮
+            }
+        }
+
         // 檢查瀏覽器支持
         function checkBrowserSupport() {
             showDebugInfo('檢查瀏覽器API支持...');
+            let allSupportMessages = [];
             
             if (!navigator.mediaDevices) {
+                allSupportMessages.push('瀏覽器不支持 mediaDevices API');
                 showDebugInfo('瀏覽器不支持 mediaDevices API', 'error');
-                return false;
+                return { supported: false, messages: allSupportMessages };
             }
             
             if (!navigator.mediaDevices.getUserMedia) {
+                allSupportMessages.push('瀏覽器不支持 getUserMedia');
                 showDebugInfo('瀏覽器不支持 getUserMedia', 'error');
-                return false;
+                return { supported: false, messages: allSupportMessages };
             }
             
             if (typeof MediaRecorder === 'undefined') {
+                allSupportMessages.push('瀏覽器不支持 MediaRecorder');
                 showDebugInfo('瀏覽器不支持 MediaRecorder', 'error');
-                return false;
+                return { supported: false, messages: allSupportMessages };
             }
             
+            // 檢查安全上下文
+            if (!window.isSecureContext) {
+                allSupportMessages.push('不在安全上下文中運行，某些API可能受限');
+                showDebugInfo('警告：不在安全上下文中運行 (非HTTPS/localhost)', 'error');
+                // 仍然返回支持，但提出警告
+            }
+            
+            // 檢查是否在iframe中
+            if (isInStreamlit()) {
+                allSupportMessages.push('在Streamlit環境(iframe)中運行，某些權限可能受限');
+                showDebugInfo('在Streamlit環境中運行（iframe）', 'info');
+                // 仍然返回支持，但提出警告
+            }
+            
+            // 檢查瀏覽器類型和版本
+            const userAgent = navigator.userAgent;
+            let browserInfo = 'Unknown browser';
+            
+            if (userAgent.indexOf('Chrome') > -1) {
+                browserInfo = 'Chrome ' + userAgent.match(/Chrome\\/(\\d+)/)[1];
+            } else if (userAgent.indexOf('Firefox') > -1) {
+                browserInfo = 'Firefox ' + userAgent.match(/Firefox\\/(\\d+)/)[1];
+            } else if (userAgent.indexOf('Safari') > -1) {
+                browserInfo = 'Safari ' + userAgent.match(/Version\\/(\\d+)/)[1];
+            } else if (userAgent.indexOf('Edge') > -1 || userAgent.indexOf('Edg') > -1) {
+                browserInfo = 'Edge ' + (userAgent.match(/Edge\\/(\\d+)/) || userAgent.match(/Edg\\/(\\d+)/))[1];
+            }
+            
+            showDebugInfo(`檢測到瀏覽器: ${browserInfo}`, 'info');
+            allSupportMessages.push(`使用瀏覽器: ${browserInfo}`);
+            
             showDebugInfo('瀏覽器支持所需的所有API', 'success');
-            return true;
+            return { supported: true, messages: allSupportMessages };
         }
 
-        // 等待DOM加載完成
-        window.addEventListener('load', function() {
-            showDebugInfo('頁面加載完成，開始初始化...');
+        // 主函數
+        function initializeRecording() {
+            showDebugInfo('初始化錄音功能...');
             
-            if (!checkBrowserSupport()) {
-                alert('您的瀏覽器不支持錄音功能，請使用最新版本的Chrome或Firefox');
+            const support = checkBrowserSupport();
+            if (!support.supported) {
+                const errorMsg = '您的瀏覽器不支持錄音功能: ' + support.messages.join(', ');
+                showDebugInfo(errorMsg, 'error');
+                alert(errorMsg + '\\n請使用最新版本的Chrome或Firefox瀏覽器。');
                 return;
             }
 
@@ -206,18 +256,33 @@ if script_files:
             let mediaRecorder = null;
             let audioChunks = [];
             let isRecording = false;
+            let recordingStream = null;
+
+            // 確保在iframe中也能獲得焦點（對於Streamlit環境）
+            window.addEventListener('click', function() {
+                if (startButton && !startButton.classList.contains('clicked-once')) {
+                    startButton.classList.add('clicked-once');
+                    showDebugInfo('頁面已獲得焦點交互', 'info');
+                }
+            });
 
             // 開始錄音按鈕事件
             startButton.addEventListener('click', async function() {
                 showDebugInfo('開始錄音按鈕被點擊');
                 
                 if (isRecording) {
-                    showDebugInfo('已經在錄音中，忽略點擊');
+                    showDebugInfo('已經在錄音中，忽略點擊', 'info');
                     return;
                 }
 
+                // 在點擊時立即顯示視覺反饋
+                startButton.style.backgroundColor = '#888';
+                startButton.textContent = '正在獲取麥克風...';
+
                 try {
                     showDebugInfo('請求麥克風權限...');
+                    
+                    // 強制在用戶手勢（點擊）中請求權限
                     const stream = await navigator.mediaDevices.getUserMedia({
                         audio: {
                             echoCancellation: true,
@@ -226,14 +291,29 @@ if script_files:
                         }
                     });
                     
+                    recordingStream = stream;  // 保存流的引用
                     showDebugInfo('成功獲得麥克風權限', 'success');
                     
-                    mediaRecorder = new MediaRecorder(stream, {
-                        mimeType: 'audio/webm'
-                    });
+                    // 使用基本的MIME類型，提高兼容性
+                    let options = {};
+                    try {
+                        options = { mimeType: 'audio/webm' };
+                        mediaRecorder = new MediaRecorder(stream, options);
+                        showDebugInfo('使用 audio/webm 格式錄音', 'success');
+                    } catch (e) {
+                        // 嘗試備選格式
+                        try {
+                            options = { mimeType: 'audio/ogg; codecs=opus' };
+                            mediaRecorder = new MediaRecorder(stream, options);
+                            showDebugInfo('備選: 使用 audio/ogg 格式錄音', 'success');
+                        } catch (e2) {
+                            // 嘗試最基本格式
+                            mediaRecorder = new MediaRecorder(stream);
+                            showDebugInfo('備選: 使用默認格式錄音', 'info');
+                        }
+                    }
                     
                     showDebugInfo('MediaRecorder 實例創建成功', 'success');
-                    
                     audioChunks = [];
                     
                     mediaRecorder.ondataavailable = (event) => {
@@ -249,29 +329,73 @@ if script_files:
                         startButton.disabled = true;
                         stopButton.disabled = false;
                         startButton.style.backgroundColor = '#cccccc';
+                        startButton.textContent = '正在錄音...';
                         stopButton.style.backgroundColor = '#ff4b4b';
                     };
 
                     mediaRecorder.onstop = () => {
                         showDebugInfo('錄音結束，處理音頻數據...');
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        const audioUrl = URL.createObjectURL(audioBlob);
-                        audioPlayer.src = audioUrl;
-                        audioPlayer.style.display = 'block';
-                        showDebugInfo('音頻處理完成，可以播放', 'success');
+                        isRecording = false;
+                        
+                        if (audioChunks.length === 0) {
+                            showDebugInfo('警告：沒有收集到音頻數據', 'error');
+                            alert('錄音過程中沒有收集到音頻數據，請檢查麥克風是否正常工作。');
+                            return;
+                        }
+                        
+                        try {
+                            const audioBlob = new Blob(audioChunks, { type: options.mimeType || 'audio/webm' });
+                            showDebugInfo(`創建音頻Blob: ${audioBlob.size} bytes`);
+                            
+                            if (audioBlob.size > 0) {
+                                const audioUrl = URL.createObjectURL(audioBlob);
+                                audioPlayer.src = audioUrl;
+                                audioPlayer.style.display = 'block';
+                                showDebugInfo('音頻處理完成，可以播放', 'success');
+                                
+                                // 嘗試主動播放
+                                audioPlayer.oncanplay = () => {
+                                    showDebugInfo('音頻已準備好播放');
+                                };
+                            } else {
+                                showDebugInfo('創建的音頻Blob大小為0', 'error');
+                            }
+                        } catch (blobError) {
+                            showDebugInfo(`創建音頻Blob失敗: ${blobError.message}`, 'error');
+                        }
                     };
 
                     mediaRecorder.onerror = (event) => {
                         showDebugInfo(`錄音錯誤: ${event.error}`, 'error');
                     };
 
-                    mediaRecorder.start();
-                    showDebugInfo('已調用 mediaRecorder.start()');
+                    // 確保每200ms收集一次數據，避免潛在問題
+                    mediaRecorder.start(200);
+                    showDebugInfo('已調用 mediaRecorder.start(200)');
                     
                 } catch (err) {
                     showDebugInfo(`錄音失敗: ${err.message}`, 'error');
                     console.error('錄音詳細錯誤:', err);
-                    alert('無法訪問麥克風，請確保已授予權限並使用支持的瀏覽器（Chrome/Firefox）');
+                    
+                    // 還原按鈕狀態
+                    startButton.disabled = false;
+                    startButton.style.backgroundColor = '#ff4b4b';
+                    startButton.textContent = '開始錄音';
+                    
+                    // 更詳細的錯誤指導
+                    let errorMessage = '無法訪問麥克風，請確保:';
+                    errorMessage += '\\n1. 麥克風設備已連接並工作正常';
+                    errorMessage += '\\n2. 您已授予麥克風使用權限';
+                    errorMessage += '\\n3. 沒有其他應用程序正在使用麥克風';
+                    
+                    if (isInStreamlit()) {
+                        errorMessage += '\\n\\n在Streamlit環境中:';
+                        errorMessage += '\\n- 確保您使用的是Chrome或Firefox瀏覽器';
+                        errorMessage += '\\n- 查看地址欄是否有麥克風權限提示';
+                        errorMessage += '\\n- 嘗試在新標籤頁中打開應用';
+                    }
+                    
+                    alert(errorMessage);
                 }
             });
 
@@ -287,27 +411,54 @@ if script_files:
                 try {
                     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
                         showDebugInfo('正在停止 MediaRecorder...');
+                        
+                        // 停止MediaRecorder
                         mediaRecorder.stop();
-                        mediaRecorder.stream.getTracks().forEach(track => {
-                            track.stop();
-                            showDebugInfo(`音軌 ${track.kind} 已停止`);
-                        });
+                        
+                        // 停止所有音軌
+                        if (recordingStream) {
+                            recordingStream.getTracks().forEach(track => {
+                                track.stop();
+                                showDebugInfo(`音軌 ${track.kind} 已停止`);
+                            });
+                        }
+                        
+                        // 更新UI
                         isRecording = false;
                         startButton.disabled = false;
                         stopButton.disabled = true;
                         startButton.style.backgroundColor = '#ff4b4b';
+                        startButton.textContent = '開始錄音';
                         stopButton.style.backgroundColor = '#cccccc';
+                        
                         showDebugInfo('錄音已完全停止', 'success');
                     }
                 } catch (err) {
                     showDebugInfo(`停止錄音失敗: ${err.message}`, 'error');
                     console.error('停止錄音詳細錯誤:', err);
+                    
+                    // 強制重置狀態，以免界面卡住
+                    isRecording = false;
+                    startButton.disabled = false;
+                    stopButton.disabled = true;
+                    startButton.style.backgroundColor = '#ff4b4b';
+                    startButton.textContent = '開始錄音';
+                    stopButton.style.backgroundColor = '#cccccc';
+                    
                     alert('停止錄音時發生錯誤，請刷新頁面重試');
                 }
             });
 
             showDebugInfo('所有事件監聽器已設置完成', 'success');
-        });
+        }
+
+        // 等待DOM加載完成
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeRecording);
+            showDebugInfo('等待DOM加載完成...');
+        } else {
+            initializeRecording();
+        }
         
         showDebugInfo('腳本初始化完成', 'success');
     })();
@@ -341,6 +492,12 @@ if script_files:
         cursor: not-allowed;
         transform: none;
     }
+    .record-button:focus {
+        outline: 2px solid #1e88e5;
+    }
+    .clicked-once {
+        box-shadow: 0 0 5px rgba(0,0,0,0.2);
+    }
     #recordedAudio {
         width: 100%;
         margin-top: 15px;
@@ -363,7 +520,7 @@ if script_files:
         border-radius: 2px;
     }
     </style>
-    """, unsafe_allow_html=True)
+    """, height=450)
 
     # 導航按鈕
     col1, col2, col3 = st.columns(3)
