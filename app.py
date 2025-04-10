@@ -131,77 +131,155 @@ if script_files:
         <button id="startRecord" class="record-button">開始錄音</button>
         <button id="stopRecord" class="record-button" disabled>停止錄音</button>
         <audio id="recordedAudio" controls style="display:none;"></audio>
+        <div id="debug-info" style="margin-top: 10px; color: #666;"></div>
     </div>
     
     <script>
+    console.log('腳本開始加載...');
+
+    // 用於顯示調試信息的函數
+    function showDebug(message) {
+        console.log(message);
+        const debugDiv = document.getElementById('debug-info');
+        if (debugDiv) {
+            debugDiv.textContent = message;
+        }
+    }
+
     // 初始化錄音功能
     let mediaRecorder = null;
     let audioChunks = [];
     let isRecording = false;
 
+    // 檢查瀏覽器支持
+    function checkBrowserSupport() {
+        showDebug('檢查瀏覽器支持...');
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showDebug('瀏覽器不支持 mediaDevices API');
+            return false;
+        }
+        if (typeof MediaRecorder === 'undefined') {
+            showDebug('瀏覽器不支持 MediaRecorder API');
+            return false;
+        }
+        showDebug('瀏覽器支持所需的API');
+        return true;
+    }
+
     // 等待DOM加載完成
     window.addEventListener('load', function() {
+        console.log('頁面加載完成，開始初始化...');
+        showDebug('正在初始化錄音功能...');
+
+        if (!checkBrowserSupport()) {
+            alert('您的瀏覽器不支持錄音功能，請使用最新版本的Chrome或Firefox');
+            return;
+        }
+
         // 獲取按鈕元素
         const startButton = document.querySelector('#startRecord');
         const stopButton = document.querySelector('#stopRecord');
         const audioPlayer = document.querySelector('#recordedAudio');
 
+        if (!startButton || !stopButton || !audioPlayer) {
+            showDebug('無法找到必要的DOM元素');
+            return;
+        }
+
+        showDebug('DOM元素已找到，添加事件監聽器...');
+
         // 為開始錄音按鈕添加事件監聽器
         startButton.addEventListener('click', async function() {
-            if (isRecording) return;
+            showDebug('開始錄音按鈕被點擊');
+            
+            if (isRecording) {
+                showDebug('已經在錄音中，忽略點擊');
+                return;
+            }
             
             try {
-                console.log('請求麥克風權限...');
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                console.log('麥克風權限已獲得');
+                showDebug('請求麥克風權限...');
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: true,
+                    echoCancellation: true,
+                    noiseSuppression: true
+                });
+                showDebug('麥克風權限已獲得');
                 
-                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'audio/webm'
+                });
+                showDebug('MediaRecorder已創建');
+                
                 audioChunks = [];
                 
                 mediaRecorder.ondataavailable = (event) => {
+                    showDebug('接收到音頻數據');
                     if (event.data.size > 0) {
                         audioChunks.push(event.data);
                     }
                 };
                 
+                mediaRecorder.onstart = () => {
+                    showDebug('MediaRecorder開始錄音');
+                    isRecording = true;
+                    startButton.disabled = true;
+                    stopButton.disabled = false;
+                };
+                
                 mediaRecorder.onstop = () => {
-                    console.log('錄音已停止，處理數據...');
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    showDebug('MediaRecorder停止錄音，處理數據...');
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                     const audioUrl = URL.createObjectURL(audioBlob);
                     audioPlayer.src = audioUrl;
                     audioPlayer.style.display = 'block';
+                    showDebug('音頻處理完成，可以播放');
+                };
+                
+                mediaRecorder.onerror = (event) => {
+                    showDebug('MediaRecorder錯誤: ' + event.error);
                 };
                 
                 mediaRecorder.start();
-                isRecording = true;
-                startButton.disabled = true;
-                stopButton.disabled = false;
-                console.log('開始錄音');
+                showDebug('已調用start()方法');
                 
             } catch (err) {
-                console.error('錄音失敗:', err);
+                showDebug('錄音失敗: ' + err.message);
+                console.error('錄音詳細錯誤:', err);
                 alert('無法訪問麥克風，請確保已授予權限並使用支持的瀏覽器（Chrome/Firefox）');
             }
         });
 
         // 為停止錄音按鈕添加事件監聽器
         stopButton.addEventListener('click', function() {
-            if (!isRecording) return;
+            showDebug('停止錄音按鈕被點擊');
+            
+            if (!isRecording) {
+                showDebug('沒有正在進行的錄音，忽略點擊');
+                return;
+            }
             
             try {
                 if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    showDebug('停止MediaRecorder...');
                     mediaRecorder.stop();
-                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                    mediaRecorder.stream.getTracks().forEach(track => {
+                        track.stop();
+                        showDebug('音軌已停止');
+                    });
                     isRecording = false;
                     startButton.disabled = false;
                     stopButton.disabled = true;
-                    console.log('錄音已停止');
+                    showDebug('錄音已完全停止');
                 }
             } catch (err) {
-                console.error('停止錄音失敗:', err);
+                showDebug('停止錄音失敗: ' + err.message);
+                console.error('停止錄音詳細錯誤:', err);
                 alert('停止錄音時發生錯誤，請刷新頁面重試');
             }
         });
+
+        showDebug('初始化完成，等待使用者操作');
     });
     </script>
     
@@ -237,6 +315,14 @@ if script_files:
         width: 100%;
         margin-top: 15px;
         border-radius: 4px;
+    }
+    #debug-info {
+        margin-top: 10px;
+        padding: 5px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 12px;
     }
     </style>
     """, unsafe_allow_html=True)
