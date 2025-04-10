@@ -127,7 +127,8 @@ if script_files:
     st.subheader("您的錄音")
     
     # 添加錄音組件的HTML
-    components.html("""
+    # 使用st.markdown代替components.html以確保在Streamlit Cloud中正常工作
+    st.markdown("""
     <div class="audio-controls">
         <button id="startRecord" class="record-button">開始錄音</button>
         <button id="stopRecord" class="record-button" disabled>停止錄音</button>
@@ -520,7 +521,7 @@ if script_files:
         border-radius: 2px;
     }
     </style>
-    """, height=450)
+    """, unsafe_allow_html=True)
 
     # 導航按鈕
     col1, col2, col3 = st.columns(3)
