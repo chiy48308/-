@@ -134,23 +134,48 @@ if script_files:
     </div>
     
     <script>
-    let mediaRecorder;
-    let audioChunks = [];
+    // 確保腳本只執行一次
+    if (typeof window.audioRecorder === 'undefined') {
+        window.audioRecorder = {
+            mediaRecorder: null,
+            audioChunks: [],
+            isRecording: false
+        };
+
+        // 初始化按鈕事件
+        document.addEventListener('DOMContentLoaded', function() {
+            const startButton = document.getElementById('startRecord');
+            const stopButton = document.getElementById('stopRecord');
+            
+            if (startButton && stopButton) {
+                startButton.onclick = startRecording;
+                stopButton.onclick = stopRecording;
+            }
+        });
+    }
     
     async function startRecording() {
-        audioChunks = [];
+        if (window.audioRecorder.isRecording) return;
+        
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
+            window.audioRecorder.audioChunks = [];
+            window.audioRecorder.mediaRecorder = new MediaRecorder(stream);
             
-            mediaRecorder.ondataavailable = (event) => {
-                audioChunks.push(event.data);
+            window.audioRecorder.mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    window.audioRecorder.audioChunks.push(event.data);
+                }
             };
             
-            mediaRecorder.onstop = () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            window.audioRecorder.mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(window.audioRecorder.audioChunks, { type: 'audio/wav' });
                 const audioUrl = URL.createObjectURL(audioBlob);
-                document.getElementById('recordedAudio').src = audioUrl;
+                const audioPlayer = document.getElementById('recordedAudio');
+                if (audioPlayer) {
+                    audioPlayer.src = audioUrl;
+                    audioPlayer.style.display = 'block';
+                }
                 
                 // 將錄音數據發送到Streamlit
                 const reader = new FileReader();
@@ -164,21 +189,40 @@ if script_files:
                 };
             };
             
-            mediaRecorder.start();
-            document.getElementById('startRecord').disabled = true;
-            document.getElementById('stopRecord').disabled = false;
+            window.audioRecorder.mediaRecorder.start();
+            window.audioRecorder.isRecording = true;
+            
+            const startButton = document.getElementById('startRecord');
+            const stopButton = document.getElementById('stopRecord');
+            if (startButton) startButton.disabled = true;
+            if (stopButton) stopButton.disabled = false;
+            
+            console.log('開始錄音');
         } catch (err) {
             console.error('錄音失敗:', err);
-            alert('無法訪問麥克風，請確保已授予權限。');
+            alert('無法訪問麥克風，請確保已授予權限並使用支持的瀏覽器（Chrome/Firefox）');
         }
     }
     
     function stopRecording() {
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
-            mediaRecorder.stream.getTracks().forEach(track => track.stop());
-            document.getElementById('startRecord').disabled = false;
-            document.getElementById('stopRecord').disabled = true;
+        if (!window.audioRecorder.isRecording) return;
+        
+        try {
+            if (window.audioRecorder.mediaRecorder && window.audioRecorder.mediaRecorder.state !== 'inactive') {
+                window.audioRecorder.mediaRecorder.stop();
+                window.audioRecorder.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                window.audioRecorder.isRecording = false;
+                
+                const startButton = document.getElementById('startRecord');
+                const stopButton = document.getElementById('stopRecord');
+                if (startButton) startButton.disabled = false;
+                if (stopButton) stopButton.disabled = true;
+                
+                console.log('停止錄音');
+            }
+        } catch (err) {
+            console.error('停止錄音失敗:', err);
+            alert('停止錄音時發生錯誤，請刷新頁面重試');
         }
     }
     </script>
@@ -199,6 +243,10 @@ if script_files:
     .audio-controls button:disabled {
         background-color: #ccc;
         cursor: not-allowed;
+    }
+    #recordedAudio {
+        width: 100%;
+        margin-top: 15px;
     }
     </style>
     """, unsafe_allow_html=True)
