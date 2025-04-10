@@ -43,21 +43,20 @@ RECORDING_PATH = os.path.join(LESSON_PATH, "lesson03_recording")
 os.makedirs(RECORDING_PATH, exist_ok=True)
 
 # 麥克風設置提示
-st.sidebar.title("🎙️ 麥克風設置")
+st.sidebar.title("🎧 錄音指南")
 st.sidebar.info("""
-### 麥克風使用說明
-1. 請確保您的瀏覽器支持音頻錄製
-2. 點擊瀏覽器地址欄的鎖定圖標
-3. 授予麥克風訪問權限
-4. 如果看不到錄音按鈕，請刷新頁面
+### 使用外部錄音應用
+1. 使用手機或電腦的錄音應用
+2. 保存錄音為支持的格式（mp3, wav, ogg等）
+3. 上傳錄音文件到系統
 """)
 
 st.sidebar.markdown("---")
-st.sidebar.write("💡 如果錄音不工作，請嘗試:")
-st.sidebar.write("1. 使用Chrome或Firefox瀏覽器")
-st.sidebar.write("2. 確認瀏覽器有麥克風權限")
-st.sidebar.write("3. 檢查系統麥克風設置")
-st.sidebar.write("4. 重新載入頁面")
+st.sidebar.write("💡 建議的錄音應用:")
+st.sidebar.write("1. Voice Recorder（Windows 10/11內置）")
+st.sidebar.write("2. 語音備忘錄（iPhone內置）")
+st.sidebar.write("3. 錄音機（Android內置）")
+st.sidebar.write("4. Audacity（免費桌面軟件）")
 
 # 學號輸入
 student_id = st.text_input("請輸入學號：", value=st.session_state.student_id)
@@ -101,57 +100,49 @@ if script_files:
     # 錄音部分
     st.subheader("您的錄音")
     
-    # 使用原生Streamlit元素
-    tab1, tab2 = st.tabs(["方法一：直接錄音", "方法二：上傳音頻"])
+    # 顯示錄音說明
+    st.info("""
+    ### 錄音步驟：
+    1. 使用您設備上的錄音應用錄製音頻
+    2. 保存音頻文件（mp3, wav, ogg等格式）
+    3. 點擊下方"選擇文件"上傳您的錄音
+    """)
     
-    with tab1:
-        st.write("使用瀏覽器錄音功能：")
-        
-        # 使用Streamlit的內置錄音功能
-        audio_bytes = st.audio_recorder(pause_threshold=3.0)
-        
-        if audio_bytes:
-            st.success("錄音完成！")
-            st.audio(audio_bytes, format="audio/wav")
-            
-            # 保存錄音
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                if st.button("保存此錄音"):
-                    # 保存到文件
-                    recording_filename = f"{st.session_state.student_id}_{st.session_state.current_index+1}.wav"
-                    recording_path = os.path.join(RECORDING_PATH, recording_filename)
-                    with open(recording_path, "wb") as f:
-                        f.write(audio_bytes)
-                    st.success(f"錄音已保存：{recording_filename}")
-                    
-            with col2:
-                if st.button("重新錄音"):
-                    st.rerun()
+    # 文件上傳功能
+    uploaded_file = st.file_uploader("上傳您的錄音文件", type=['mp3', 'wav', 'ogg', 'm4a', 'webm'])
     
-    with tab2:
-        st.write("上傳現有音頻文件：")
+    if uploaded_file is not None:
+        # 獲取文件類型
+        file_extension = uploaded_file.name.split('.')[-1].lower()
         
-        # 文件上傳功能
-        uploaded_file = st.file_uploader("選擇音頻文件", type=['mp3', 'wav', 'ogg', 'm4a', 'webm'])
+        # 顯示文件信息
+        file_details = {
+            "檔案名稱": uploaded_file.name,
+            "檔案大小": f"{uploaded_file.size / 1024:.1f} KB",
+            "檔案類型": file_extension.upper()
+        }
+        st.write("**檔案信息：**")
+        st.json(file_details)
         
-        if uploaded_file is not None:
-            # 獲取文件類型
-            file_extension = uploaded_file.name.split('.')[-1].lower()
-            
-            # 顯示上傳的音頻
-            st.audio(uploaded_file, format=f"audio/{file_extension}")
-            
-            # 保存上傳的音頻
-            if st.button("使用此音頻"):
+        # 顯示上傳的音頻
+        st.write("**預覽錄音：**")
+        st.audio(uploaded_file, format=f"audio/{file_extension}")
+        
+        # 保存上傳的音頻
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("保存此錄音"):
                 recording_filename = f"{st.session_state.student_id}_{st.session_state.current_index+1}.{file_extension}"
                 recording_path = os.path.join(RECORDING_PATH, recording_filename)
                 
                 with open(recording_path, "wb") as f:
                     f.write(uploaded_file.getbuffer())
                 
-                st.success(f"音頻已保存：{recording_filename}")
+                st.success(f"錄音已保存為：{recording_filename}")
+        
+        with col2:
+            st.write("👆 點擊保存按鈕將錄音保存到系統")
 
     # 檢查是否已有保存的錄音
     existing_recording = None
@@ -165,6 +156,16 @@ if script_files:
     if existing_recording:
         st.markdown("---")
         st.subheader("您已保存的錄音")
+        
+        # 顯示文件信息
+        file_size = os.path.getsize(existing_recording) / 1024  # KB
+        file_ext = os.path.splitext(existing_recording)[1][1:].upper()
+        
+        st.write(f"**檔案名稱:** {os.path.basename(existing_recording)}")
+        st.write(f"**檔案類型:** {file_ext}")
+        st.write(f"**檔案大小:** {file_size:.1f} KB")
+        
+        # 顯示音頻
         st.audio(existing_recording)
         
         # 添加刪除選項
