@@ -5,6 +5,7 @@ from pathlib import Path
 import sounddevice as sd
 import soundfile as sf
 import time
+import platform
 
 # 設置頁面配置
 st.set_page_config(
@@ -16,6 +17,24 @@ st.set_page_config(
 # 設置標題
 st.title("英語配音練習系統")
 
+# 檢測運行環境
+is_cloud = os.environ.get('STREAMLIT_CLOUD', False)
+
+if is_cloud:
+    st.warning("""
+    ⚠️ 您正在Streamlit Cloud環境中運行此應用。
+    
+    由於瀏覽器安全限制，某些功能可能受限：
+    1. 麥克風訪問需要HTTPS連接
+    2. 需要授予瀏覽器麥克風權限
+    3. 某些瀏覽器可能不支持音頻錄製
+    
+    建議：
+    - 使用最新版本的Chrome或Firefox瀏覽器
+    - 確保已授予麥克風權限
+    - 如果遇到問題，請嘗試在本地運行應用
+    """)
+
 # 添加麥克風檢測功能
 def get_available_devices():
     try:
@@ -26,6 +45,8 @@ def get_available_devices():
                 input_devices.append((i, device['name']))
         return input_devices
     except Exception as e:
+        if is_cloud:
+            st.info("🎙️ 請點擊瀏覽器地址欄的鎖定圖標，並授予麥克風訪問權限。")
         return []
 
 # 初始化 session state
@@ -179,8 +200,25 @@ if script_files:
         
         # 檢查是否有選擇麥克風
         if record_button:
+            if is_cloud:
+                st.info("""
+                🎙️ 在雲端環境中使用麥克風：
+                1. 確保使用HTTPS連接
+                2. 點擊瀏覽器地址欄的鎖定圖標
+                3. 授予麥克風訪問權限
+                4. 刷新頁面
+                """)
+            
             if not available_devices:
-                st.error("未檢測到麥克風設備，無法錄音。請連接麥克風後重新啟動應用。")
+                if is_cloud:
+                    st.error("""
+                    未檢測到麥克風設備。請檢查：
+                    1. 瀏覽器是否已獲得麥克風權限
+                    2. 是否使用支持的瀏覽器（建議使用Chrome或Firefox）
+                    3. 麥克風是否正確連接
+                    """)
+                else:
+                    st.error("未檢測到麥克風設備，無法錄音。請連接麥克風後重新啟動應用。")
             elif st.session_state.selected_device is None:
                 st.error("請先在側邊欄選擇並測試麥克風設備。")
             else:
@@ -198,23 +236,50 @@ if script_files:
                     st.session_state.channels = channels
                     st.session_state.device_id = st.session_state.selected_device
                     
+                    # 測試麥克風是否可用
+                    try:
+                        sd.check_input_settings(
+                            device=st.session_state.selected_device,
+                            channels=channels,
+                            samplerate=fs
+                        )
+                    except sd.PortAudioError as e:
+                        st.error(f"麥克風設置錯誤：{str(e)}")
+                        if is_cloud:
+                            st.info("在雲端環境中，請確保已授予麥克風權限並使用支持的瀏覽器。")
+                        st.stop()
+                    
                     # 創建一個緩衝區來存儲錄音數據
                     max_duration = 60  # 最大錄音時長（秒）
-                    buffer_size = int(max_duration * fs * channels)  # 計算緩衝區大小
+                    buffer_size = int(max_duration * fs * channels)
                     
-                    # 開始錄音, 但不等待完成，只是開始記錄
-                    st.session_state.recording_queue = sd.rec(buffer_size, samplerate=fs, channels=channels, dtype=np.float32, device=st.session_state.selected_device, blocking=False)
-                    
-                    # 記錄開始時間
-                    st.session_state.recording_start_time = time.time()
-                    
-                    # 設置錄音狀態為真
-                    st.session_state.recording = True
-                    
-                    # 顯示錄音按鈕的狀態
-                    st.rerun()
+                    # 開始錄音
+                    try:
+                        st.session_state.recording_queue = sd.rec(
+                            buffer_size,
+                            samplerate=fs,
+                            channels=channels,
+                            dtype=np.float32,
+                            device=st.session_state.selected_device,
+                            blocking=False
+                        )
+                        
+                        # 記錄開始時間
+                        st.session_state.recording_start_time = time.time()
+                        
+                        # 設置錄音狀態為真
+                        st.session_state.recording = True
+                        
+                        # 顯示錄音按鈕的狀態
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"錄音失敗：{str(e)}")
+                        if is_cloud:
+                            st.info("如果在雲端環境中遇到問題，請嘗試在本地運行應用。")
                 except Exception as e:
-                    st.error(f"錄音失敗：{str(e)}")
+                    st.error(f"設備初始化失敗：{str(e)}")
+                    if is_cloud:
+                        st.info("請確保瀏覽器支持音頻錄製功能。")
     
     # 結束錄音按鈕
     with col_rec2:
