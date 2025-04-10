@@ -5,6 +5,13 @@ import time
 from werkzeug.utils import secure_filename
 import json
 
+# 確保所有必要目錄存在
+for directory in ["datasets/lesson03", 
+                "datasets/lesson03/lesson03_script", 
+                "datasets/lesson03/lesson03_speech", 
+                "datasets/lesson03/lesson03_recording"]:
+    os.makedirs(directory, exist_ok=True)
+
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)  # 用於session的密鑰
 
@@ -13,9 +20,6 @@ LESSON_PATH = "datasets/lesson03"
 SCRIPT_PATH = os.path.join(LESSON_PATH, "lesson03_script")
 SPEECH_PATH = os.path.join(LESSON_PATH, "lesson03_speech")
 RECORDING_PATH = os.path.join(LESSON_PATH, "lesson03_recording")
-
-# 確保目錄存在
-os.makedirs(RECORDING_PATH, exist_ok=True)
 
 # 允許上傳的音頻格式
 ALLOWED_EXTENSIONS = {'mp3', 'wav', 'ogg', 'm4a', 'webm'}
